@@ -108,11 +108,22 @@
     <!-- SIDEBAR (Controls) -->
     <aside class="w-full md:w-80 bg-white border-r border-gray-200 p-6 flex flex-col gap-6 no-print h-auto md:h-screen md:sticky md:top-0 overflow-y-auto shadow-xl z-10 scrollbar-hide">
         <div>
-            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600 mb-1">
-                DocuFlow
-            </h1>
+            <div class="flex items-center gap-3 mb-1">
+                <!-- Custom DF Logo -->
+                <div class="w-10 h-10 flex-shrink-0 text-gray-800">
+                    <svg viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg" class="w-full h-full">
+                        <path d="M45 130C45 130 25 130 25 115C25 100 45 35 45 35C45 35 30 35 20 50M45 130C45 130 70 130 80 105C90 80 100 40 80 20C60 0 35 20 45 55C55 90 100 100 120 80" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M120 80C140 60 160 30 140 20" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M100 50 L 160 50" stroke="currentColor" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-purple-600">
+                    DocuFlow
+                </h1>
+            </div>
+            
             <div class="flex items-center justify-between">
-                <p class="text-xs text-gray-500">Business Suite</p>
+                <p class="text-xs text-gray-500 pl-1">Business Suite</p>
                 <button id="auth-btn" onclick="toggleModal('login-modal')" class="text-xs font-semibold text-blue-600 hover:text-blue-700">Sign In</button>
             </div>
         </div>
@@ -143,6 +154,17 @@
         <!-- Doc Type Selector -->
         <div class="grid grid-cols-2 gap-3" id="doc-type-container">
             <!-- Buttons injected by JS -->
+        </div>
+
+        <!-- Document Options -->
+        <div>
+            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Options</h3>
+            <label class="flex items-center gap-2 cursor-pointer p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors bg-white shadow-sm">
+                <div class="relative flex items-center">
+                    <input type="checkbox" id="discount-toggle" onchange="toggleDiscount(this.checked)" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300">
+                </div>
+                <span class="text-xs font-medium text-gray-700 select-none">Enable Discount Field</span>
+            </label>
         </div>
 
         <!-- Cloud Actions -->
@@ -251,7 +273,9 @@
             ],
             notes: DOC_TYPES.INVOICE.terms,
             bankDetails: 'Bank: Emirates NBD\nIBAN: AE0000000000000000\nAccount Name: Your Company',
-            accentColor: 'blue'
+            accentColor: 'blue',
+            discount: 0,
+            showDiscount: false
         };
 
         let currentUser = null;
@@ -291,8 +315,6 @@
                 } else {
                     await signInAnonymously(auth);
                 }
-                // Note: Real social auth (Google/Github) would require popup/redirect which behaves differently in Canvas.
-                // We simulate the flow by authenticating the user into the system.
             } catch (error) {
                 console.error("Auth error", error);
                 alert("Authentication failed. Please try again.");
@@ -334,6 +356,10 @@
                     div.className = 'p-4 border rounded-lg hover:bg-gray-50 cursor-pointer flex justify-between items-center group transition-colors';
                     div.onclick = () => {
                         state = { ...state, ...data };
+                        // Ensure optional fields are handled correctly if missing from older saved docs
+                        if (typeof state.showDiscount === 'undefined') state.showDiscount = false;
+                        if (typeof state.discount === 'undefined') state.discount = 0;
+                        
                         // Remove timestamps causing issues
                         delete state.savedAt;
                         renderTemplate();
@@ -523,9 +549,13 @@
             const hasPrice = DOC_TYPES[state.activeDoc].hasPrice;
             const theme = COLOR_THEMES[state.accentColor];
             const subtotal = state.items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
-            const vat = subtotal * VAT_RATE;
-            const total = subtotal + vat;
-            state.total = total; // Save for summary
+            
+            // Discount Logic
+            const discount = state.showDiscount ? (parseFloat(state.discount) || 0) : 0;
+            const taxable = Math.max(0, subtotal - discount);
+            const vat = taxable * VAT_RATE;
+            const total = taxable + vat;
+            state.total = total;
 
             const notesSection = `
                 <div class="flex-1 space-y-8">
@@ -534,13 +564,22 @@
                 </div>
             `;
 
+            const discountRow = state.showDiscount ? `
+                <div class="flex justify-between items-center text-sm text-gray-600">
+                    <span>Discount</span>
+                    <div class="flex items-center w-24 border-b border-gray-200 focus-within:border-blue-500">
+                        <input type="number" oninput="window.updateDiscount(this.value)" value="${state.discount}" class="w-full text-right bg-transparent focus:outline-none text-sm" placeholder="0">
+                    </div>
+                </div>` : '';
+
             const totalsSection = hasPrice ? `
                 <div class="${vertical ? 'w-full' : 'w-full md:w-80'}">
                     <div class="bg-gray-50 rounded-lg p-6 space-y-3 print:bg-transparent print:p-0">
                         <div class="flex justify-between text-sm text-gray-600"><span>Subtotal</span><span class="font-medium">${formatCurrency(subtotal)}</span></div>
-                        <div class="flex justify-between text-sm text-gray-600"><span>VAT (5%)</span><span class="font-medium">${formatCurrency(vat)}</span></div>
+                        ${discountRow}
+                        <div class="flex justify-between text-sm text-gray-600"><span>VAT (5%)</span><span class="font-medium" id="val-vat">${formatCurrency(vat)}</span></div>
                         <div class="h-px w-full bg-gray-200 my-2"></div>
-                        <div class="flex justify-between text-xl font-bold ${theme.textDark}"><span>Total</span><span>${formatCurrency(total)}</span></div>
+                        <div class="flex justify-between text-xl font-bold ${theme.textDark}"><span>Total</span><span id="val-total">${formatCurrency(total)}</span></div>
                         <div class="text-right text-xs text-gray-400 mt-1">AED</div>
                     </div>
                 </div>
@@ -573,7 +612,7 @@
                 el.style.height = el.scrollHeight + 'px';
             });
 
-            // Update Active Buttons
+            // Update Active Buttons & Controls
             document.querySelectorAll('.template-btn').forEach(btn => {
                 if(btn.dataset.template === state.template) {
                     btn.className = "template-btn p-2 border border-blue-500 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium text-center shadow-sm";
@@ -582,8 +621,11 @@
                 }
             });
             
-            // Sync Font Select
             document.getElementById('font-select').value = state.font;
+            
+            // Sync Discount Toggle
+            const discToggle = document.getElementById('discount-toggle');
+            if (discToggle) discToggle.checked = state.showDiscount;
         };
 
         window.setTemplate = (tmpl) => {
@@ -593,6 +635,11 @@
 
         window.setFont = (fontName) => {
             state.font = fontName;
+            window.renderTemplate();
+        };
+
+        window.toggleDiscount = (checked) => {
+            state.showDiscount = checked;
             window.renderTemplate();
         };
 
@@ -637,9 +684,21 @@
         window.updateItem = (index, field, value) => {
             if (field === 'qty' || field === 'rate') value = parseFloat(value) || 0;
             state.items[index][field] = value;
-            // Only re-render if it affects totals text, otherwise simpler to let input update natively to avoid focus loss
-            // Since we need totals to update live:
             if(field === 'qty' || field === 'rate') window.renderTemplate(); 
+        };
+
+        window.updateDiscount = (val) => {
+            state.discount = parseFloat(val) || 0;
+            // Immediate update of totals without full re-render
+            const subtotal = state.items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
+            const taxable = Math.max(0, subtotal - state.discount);
+            const vat = taxable * VAT_RATE;
+            const total = taxable + vat;
+            
+            const elVat = document.getElementById('val-vat');
+            const elTotal = document.getElementById('val-total');
+            if(elVat) elVat.innerText = formatCurrency(vat);
+            if(elTotal) elTotal.innerText = formatCurrency(total);
         };
 
         window.handleLogoUpload = (input) => {
@@ -664,6 +723,8 @@
                 state.items = [{ id: 1, description: '', qty: 1, rate: 0 }];
                 state.company = { name: 'Your Company', address: 'Address', trn: '', logo: null };
                 state.client = { name: 'Client', address: '', contact: '', trn: '' };
+                state.discount = 0;
+                state.showDiscount = false;
                 window.renderTemplate();
             }
         };
@@ -765,8 +826,17 @@
             if(DOC_TYPES[state.activeDoc].hasPrice) {
                 const sub = state.items.reduce((a,b)=>a+(b.qty*b.rate),0);
                 ws_data.push(["", "", "", "Subtotal", sub]);
-                ws_data.push(["", "", "", `VAT (${VAT_RATE*100}%)`, sub * VAT_RATE]);
-                ws_data.push(["", "", "", "Total", sub * (1 + VAT_RATE)]);
+                
+                let taxable = sub;
+                if(state.showDiscount) {
+                    const discount = parseFloat(state.discount) || 0;
+                    taxable = Math.max(0, sub - discount);
+                    ws_data.push(["", "", "", "Discount", discount]);
+                }
+                
+                const vat = taxable * VAT_RATE;
+                ws_data.push(["", "", "", `VAT (${VAT_RATE*100}%)`, vat]);
+                ws_data.push(["", "", "", "Total", taxable + vat]);
             }
 
             const wb = XLSX.utils.book_new();
@@ -779,36 +849,46 @@
             const { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, TextRun, AlignmentType, BorderStyle } = docx;
 
             const createCell = (text, width = 2000) => new TableCell({ width: { size: width, type: WidthType.DXA }, children: [new Paragraph(text)] });
+            
             const subtotal = state.items.reduce((a,b)=>a+(b.qty*b.rate),0);
-            const vat = subtotal * VAT_RATE;
-            const total = subtotal + vat;
+            const discount = state.showDiscount ? (parseFloat(state.discount) || 0) : 0;
+            const taxable = Math.max(0, subtotal - discount);
+            const vat = taxable * VAT_RATE;
+            const total = taxable + vat;
 
             const tableRows = [new TableRow({ children: [createCell("#", 500), createCell("Description", 4000), createCell("Qty", 1000), createCell("Rate", 1500), createCell("Total", 1500)] })];
             state.items.forEach((item, i) => {
                 tableRows.push(new TableRow({ children: [createCell((i+1).toString(), 500), createCell(item.description, 4000), createCell(item.qty.toString(), 1000), createCell(formatCurrency(item.rate), 1500), createCell(formatCurrency(item.qty * item.rate), 1500)] }));
             });
 
+            const children = [
+                new Paragraph({ children: [new TextRun({ text: state.company.name, bold: true, size: 32 })] }),
+                new Paragraph({ text: state.company.address }),
+                new Paragraph({ text: `TRN: ${state.company.trn}` }),
+                new Paragraph({ text: "" }),
+                new Paragraph({ children: [new TextRun({ text: DOC_TYPES[state.activeDoc].label, bold: true, size: 48, color: "2563EB" })], alignment: AlignmentType.RIGHT }),
+                new Paragraph({ text: `No: ${state.docNumber}`, alignment: AlignmentType.RIGHT }),
+                new Paragraph({ text: `Date: ${state.date}`, alignment: AlignmentType.RIGHT }),
+                new Paragraph({ text: "" }),
+                new Paragraph({ text: "Bill To:", bold: true }),
+                new Paragraph({ text: state.client.name }),
+                new Paragraph({ text: state.client.address }),
+                new Table({ rows: tableRows, width: { size: 100, type: WidthType.PERCENTAGE } }),
+                new Paragraph({ text: "" }),
+                new Paragraph({ text: `Subtotal: ${formatCurrency(subtotal)}`, alignment: AlignmentType.RIGHT })
+            ];
+
+            if(state.showDiscount) {
+                children.push(new Paragraph({ text: `Discount: ${formatCurrency(discount)}`, alignment: AlignmentType.RIGHT }));
+            }
+
+            children.push(new Paragraph({ text: `VAT (5%): ${formatCurrency(vat)}`, alignment: AlignmentType.RIGHT }));
+            children.push(new Paragraph({ children: [new TextRun({ text: `Total: ${formatCurrency(total)}`, bold: true })], alignment: AlignmentType.RIGHT }));
+
             const doc = new Document({
                 sections: [{
                     properties: {},
-                    children: [
-                        new Paragraph({ children: [new TextRun({ text: state.company.name, bold: true, size: 32 })] }),
-                        new Paragraph({ text: state.company.address }),
-                        new Paragraph({ text: `TRN: ${state.company.trn}` }),
-                        new Paragraph({ text: "" }),
-                        new Paragraph({ children: [new TextRun({ text: DOC_TYPES[state.activeDoc].label, bold: true, size: 48, color: "2563EB" })], alignment: AlignmentType.RIGHT }),
-                        new Paragraph({ text: `No: ${state.docNumber}`, alignment: AlignmentType.RIGHT }),
-                        new Paragraph({ text: `Date: ${state.date}`, alignment: AlignmentType.RIGHT }),
-                        new Paragraph({ text: "" }),
-                        new Paragraph({ text: "Bill To:", bold: true }),
-                        new Paragraph({ text: state.client.name }),
-                        new Paragraph({ text: state.client.address }),
-                        new Table({ rows: tableRows, width: { size: 100, type: WidthType.PERCENTAGE } }),
-                        new Paragraph({ text: "" }),
-                        new Paragraph({ text: `Subtotal: ${formatCurrency(subtotal)}`, alignment: AlignmentType.RIGHT }),
-                        new Paragraph({ text: `VAT (5%): ${formatCurrency(vat)}`, alignment: AlignmentType.RIGHT }),
-                        new Paragraph({ children: [new TextRun({ text: `Total: ${formatCurrency(total)}`, bold: true })], alignment: AlignmentType.RIGHT }),
-                    ],
+                    children: children,
                 }],
             });
 
