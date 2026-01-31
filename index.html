@@ -264,7 +264,7 @@
             activeDoc: 'INVOICE',
             docNumber: 'INV-001',
             date: new Date().toISOString().split('T')[0],
-            dueDate: new Date().toISOString().split('T')[0],
+            // Removed dueDate from initial state
             company: { name: 'Your Company Name', address: 'P.O. Box 12345, Dubai, UAE', trn: '100XXXXXXXXXXXX', logo: null },
             client: { name: 'Client Company LLC', address: 'Business Bay, Dubai, UAE', trn: '100YYYYYYYYYYYY', contact: 'Mr. John Doe' },
             items: [
@@ -437,7 +437,7 @@
                         <div class="flex-1 p-8 flex flex-col bg-white">
                             <!-- Hidden inputs for mapping logic to work, visual inputs are in sidebar -->
                             <div class="hidden">
-                                <input id="doc-number" value="${state.docNumber}"><input id="doc-date" value="${state.date}"><input id="doc-due-date" value="${state.dueDate}">
+                                <input id="doc-number" value="${state.docNumber}"><input id="doc-date" value="${state.date}">
                                 <input id="client-contact" value="${state.client.contact}"><input id="client-trn" value="${state.client.trn}">
                             </div>
                             ${renderTable('border-gray-200', true)}
@@ -488,7 +488,6 @@
                 <div class="flex flex-col gap-2 ${align}">
                     <div class="flex items-center gap-4 justify-end"><label class="text-xs font-bold text-gray-400 uppercase">No:</label><input id="doc-number" class="text-right font-bold text-gray-800 w-32 focus:outline-none" value="${state.docNumber}"></div>
                     <div class="flex items-center gap-4 justify-end"><label class="text-xs font-bold text-gray-400 uppercase">Date:</label><input type="date" id="doc-date" class="text-right font-medium text-gray-800 bg-transparent w-32 focus:outline-none" value="${state.date}"></div>
-                    ${state.activeDoc === 'INVOICE' ? `<div class="flex items-center gap-4 justify-end"><label class="text-xs font-bold text-gray-400 uppercase">Due:</label><input type="date" id="doc-due-date" class="text-right font-medium text-gray-800 bg-transparent w-32 focus:outline-none" value="${state.dueDate}"></div>` : ''}
                 </div>
             `;
         }
@@ -654,7 +653,6 @@
                 { id: 'client-trn', path: ['client', 'trn'] },
                 { id: 'doc-number', path: ['docNumber'] },
                 { id: 'doc-date', path: ['date'] },
-                { id: 'doc-due-date', path: ['dueDate'] },
                 { id: 'notes', path: ['notes'] },
                 { id: 'bank-details', path: ['bankDetails'] }
             ];
@@ -797,7 +795,6 @@
             ws_data.push([]);
             ws_data.push([DOC_TYPES[state.activeDoc].label, state.docNumber]);
             ws_data.push(["Date:", state.date]);
-            ws_data.push(["Due Date:", state.dueDate]);
             ws_data.push([]);
             ws_data.push(["Bill To:"]);
             ws_data.push([state.client.name]);
